@@ -24,7 +24,7 @@ Modern peer-to-peer payment system. This sample application uses Next.js, Supaba
 1. Clone the repository and install dependencies:
 
    ```bash
-   git clone git@github.com:akelani-circle/arc-p2p-payments.git
+   git clone git@github.com:circlefin/arc-p2p-payments.git
    cd arc-p2p-payments
    npm install
    ```
