@@ -43,6 +43,7 @@ interface UserWallet {
   id: string;
   email: string;
   name?: string;
+  username?: string;
   wallet_address: string;
   blockchain: string;
 }
@@ -181,7 +182,7 @@ export function RecipientSearchInput({
         const { data: walletsWithProfiles, error } = await supabase
           .from('wallets')
           .select(
-            'wallet_address, blockchain, profile_id, profiles(id, auth_user_id, name, email)'
+            'wallet_address, blockchain, profile_id, profiles(id, auth_user_id, name, email, username)'
           )
           .in('blockchain', ['ARC', 'ARC-TESTNET']);
 
@@ -198,6 +199,8 @@ export function RecipientSearchInput({
             return (
               (profile.name &&
                 profile.name.toLowerCase().includes(queryLower)) ||
+              (profile.username &&
+                profile.username.toLowerCase().includes(queryLower)) ||
               (profile.email &&
                 profile.email.toLowerCase().includes(queryLower)) ||
               (w.wallet_address &&
@@ -210,6 +213,7 @@ export function RecipientSearchInput({
               id: profile.id,
               email: profile.email,
               name: profile.name,
+              username: profile.username,
               wallet_address: w.wallet_address,
               blockchain: w.blockchain,
             };
@@ -381,7 +385,7 @@ export function RecipientSearchInput({
               </Button>
               <div className="flex-1 **:[[cmdk-input-wrapper]]:border-0">
                 <CommandInput
-                  placeholder="Name, email, or wallet address..."
+                  placeholder="Name, username, email, or address..."
                   value={searchQuery}
                   onValueChange={setSearchQuery}
                 />
@@ -434,7 +438,7 @@ export function RecipientSearchInput({
                     <div className="flex flex-col items-center gap-2 text-muted-foreground">
                       <UserX className="h-10 w-10 opacity-40" />
                       <p className="text-sm font-medium">No users found</p>
-                      <p className="text-xs">Try a different name, email, or wallet address</p>
+                      <p className="text-xs">Try a different name, username, email, or address</p>
                     </div>
                   </CommandEmpty>
                 )}
@@ -480,7 +484,7 @@ export function RecipientSearchInput({
                           {user.name || user.email}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {truncateAddress(user.wallet_address)}
+                          {user.username ? `@${user.username} · ` : ''}{truncateAddress(user.wallet_address)}
                         </p>
                       </div>
                     </CommandItem>
