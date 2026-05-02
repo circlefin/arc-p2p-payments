@@ -60,7 +60,7 @@
     "@types/uuid": "^11.0.0",
     "dotenv": "^17.3.1",
     "inquirer": "^13.3.0",
-    "postcss": "8.5.6",
+    "postcss": "8.5.10",
     "supabase": "^2.76.15",
     "tailwind-merge": "^3.5.0",
     "tailwindcss": "4.2.1",
