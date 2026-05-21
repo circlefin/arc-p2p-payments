@@ -16,10 +16,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { createBrowserClient } from "@supabase/ssr";
+import { initiateDeveloperControlledWalletsClient } from "@circle-fin/developer-controlled-wallets";
 
-export const createClient = () =>
-  createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co",
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholder-anon-key"
-  );
+const apiKey = process.env.CIRCLE_API_KEY;
+const entitySecret = process.env.CIRCLE_ENTITY_SECRET;
+
+if (!apiKey || !entitySecret) {
+  console.warn("WARNING: CIRCLE_API_KEY or CIRCLE_ENTITY_SECRET is missing or empty.");
+}
+
+export const circleDeveloperSdk = initiateDeveloperControlledWalletsClient({
+  apiKey: apiKey || "",
+  entitySecret: entitySecret || "",
+});
