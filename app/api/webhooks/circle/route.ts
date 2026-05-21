@@ -221,7 +221,7 @@ async function processTransaction(
 
   const { data: existing } = await supabase
     .from("transactions")
-    .select("id, amount, circle_contract_address")
+    .select("id, status, amount, circle_contract_address")
     .eq("circle_transaction_id", txHash)
     .eq("wallet_id", wallet.id)
     .single();

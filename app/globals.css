@@ -18,6 +18,7 @@
 
 @import "tailwindcss";
 @plugin "tailwindcss-animate";
+@source inline("text-yellow-500", "bg-yellow-500/10", "text-green-500", "bg-green-500/10", "text-blue-500", "bg-blue-500/10", "text-destructive", "bg-destructive/10");
 
 @custom-variant dark (&:is(.dark *));
 
