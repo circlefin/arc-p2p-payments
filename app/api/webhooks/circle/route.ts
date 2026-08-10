@@ -486,17 +486,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const body = await req.json();
-    const bodyString = JSON.stringify(body);
+    // Circle signs the RAW request bytes. Never verify against a re-serialized
+    // body: JSON.stringify(JSON.parse(x)) is not byte-identical to x.
+    const rawBody = await req.text();
 
-    const isVerified = await verifyCircleSignature(
-      bodyString,
-      signature,
-      keyId
-    );
+    const isVerified = await verifyCircleSignature(rawBody, signature, keyId);
+    
     if (!isVerified) {
       return NextResponse.json({ error: "Invalid signature" }, { status: 403 });
     }
+
+    // Parse only AFTER the signature is proven valid.
+    const body = JSON.parse(rawBody);
 
     await handleWebhookNotification(body.notification, body.notificationType);
 
