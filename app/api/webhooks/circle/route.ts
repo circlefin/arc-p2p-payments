@@ -21,10 +21,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin-client";
 import { SupabaseClient } from "@supabase/supabase-js";
 
-const baseUrl = process.env.NEXT_PUBLIC_VERCEL_URL
-  ? process.env.NEXT_PUBLIC_VERCEL_URL
-  : "http://localhost:3000";
-
 const ARC_CHAIN_ID = 5042002;
 const ARC_NETWORK_NAME = "Arc Testnet";
 
@@ -159,22 +155,30 @@ async function updateWalletBalance(
 
     const supabase = createSupabaseAdminClient();
 
-    // Call wallet balance API
-    const response = await fetch(`${baseUrl}/api/wallet/balance`, {
-      method: "POST",
-      body: JSON.stringify({
-        walletId: wallet.wallet_address,
-        blockchain: "arc",
-      }),
-      headers: { "Content-Type": "application/json" },
-    });
+    // Fetch the current balance from Circle directly. This handler runs
+    // without a user session, so it stays self-contained instead of going
+    // through the session-scoped balance API route.
+    const response = await fetch(
+      `https://api.circle.com/v1/w3s/buidl/wallets/ARC-TESTNET/${wallet.wallet_address}/balances`,
+      {
+        headers: {
+          "X-Request-Id": crypto.randomUUID(),
+          Authorization: `Bearer ${process.env.CIRCLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
 
     if (!response.ok) {
       console.error(`Balance API error: ${response.status}`);
       return;
     }
 
-    const { balance } = await response.json();
+    const balanceData = await response.json();
+    const balance =
+      balanceData?.data?.tokenBalances?.find(
+        (b: { token?: { symbol?: string } }) => b.token?.symbol === "USDC"
+      )?.amount || "0";
 
     // Update wallet balance in database
     await supabase

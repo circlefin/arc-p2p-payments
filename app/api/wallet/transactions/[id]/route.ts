@@ -34,6 +34,18 @@ export async function GET(
 
     // Initialize Supabase client
     const supabase = await createSupabaseServerClient();
+
+    // Transaction details and record keeping are only for signed-in users.
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json(
+        { error: "Not authenticated" },
+        { status: 401 }
+      );
+    }
+
     const supabaseAdmin = createSupabaseAdminClient();
 
     // First check if we have this transaction in our local database
