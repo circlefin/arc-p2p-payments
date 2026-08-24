@@ -18,6 +18,7 @@
 
 import { type NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server-client";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin-client";
 
 const ARC_BLOCKCHAIN = "ARC-TESTNET";
 const ARC_NETWORK_NAME = "Arc Testnet";
@@ -33,6 +34,7 @@ export async function GET(
 
     // Initialize Supabase client
     const supabase = await createSupabaseServerClient();
+    const supabaseAdmin = createSupabaseAdminClient();
 
     // First check if we have this transaction in our local database
     let localTransaction = null;
@@ -177,14 +179,14 @@ export async function GET(
 
         // Try to store this transaction data in our database
         try {
-          const { data: wallet } = await supabase
+          const { data: wallet } = await supabaseAdmin
             .from("wallets")
             .select("id, profile_id")
             .eq("wallet_address", transfer.walletAddress || transfer.from)
             .maybeSingle();
 
           if (wallet) {
-            const { error: insertError } = await supabase
+            const { error: insertError } = await supabaseAdmin
               .from("transactions")
               .insert({
                 id: transfer.id,
@@ -263,7 +265,7 @@ export async function GET(
           };
 
           try {
-            const { data: wallet } = await supabase
+            const { data: wallet } = await supabaseAdmin
               .from("wallets")
               .select("id, profile_id")
               .eq(
@@ -273,7 +275,7 @@ export async function GET(
               .maybeSingle();
 
             if (wallet) {
-              const { error: insertError } = await supabase
+              const { error: insertError } = await supabaseAdmin
                 .from("transactions")
                 .insert({
                   id: transfer.id,
@@ -340,14 +342,14 @@ export async function GET(
           };
 
           try {
-            const { data: wallet } = await supabase
+            const { data: wallet } = await supabaseAdmin
               .from("wallets")
               .select("id, profile_id")
               .eq("wallet_address", receipt.from)
               .maybeSingle();
 
             if (wallet) {
-              const { error: insertError } = await supabase
+              const { error: insertError } = await supabaseAdmin
                 .from("transactions")
                 .insert({
                   id: receipt.transactionHash || id,

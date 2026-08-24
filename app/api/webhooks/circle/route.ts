@@ -18,7 +18,7 @@
 
 import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseServerClient } from "@/lib/supabase/server-client";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin-client";
 import { SupabaseClient } from "@supabase/supabase-js";
 
 const baseUrl = process.env.NEXT_PUBLIC_VERCEL_URL
@@ -83,7 +83,7 @@ async function findWalletByAddress(
     return null;
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = createSupabaseAdminClient();
 
   const normalizedAddress = address.trim().toLowerCase();
 
@@ -157,7 +157,7 @@ async function updateWalletBalance(
       return;
     }
 
-    const supabase = await createSupabaseServerClient();
+    const supabase = createSupabaseAdminClient();
 
     // Call wallet balance API
     const response = await fetch(`${baseUrl}/api/wallet/balance`, {
@@ -275,7 +275,7 @@ async function handleWebhookNotification(
     | UserOperationNotification,
   notificationType: NotificationType
 ): Promise<void> {
-  const supabase = await createSupabaseServerClient();
+  const supabase = createSupabaseAdminClient();
 
   try {
     // Handle Circle transfers
