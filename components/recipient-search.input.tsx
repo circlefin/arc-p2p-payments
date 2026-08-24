@@ -134,15 +134,14 @@ export function RecipientSearchInput({
 
         // Look up which addresses belong to platform wallets
         const { data: platformWallets } = await supabase
-          .from('wallets')
-          .select('wallet_address, profiles(name)')
+          .from('wallet_directory')
+          .select('wallet_address, name')
           .in('blockchain', ['ARC', 'ARC-TESTNET']);
 
         const walletMap = new Map<string, string | undefined>();
         if (platformWallets) {
           for (const w of platformWallets) {
-            const profile = w.profiles as any;
-            walletMap.set(w.wallet_address.toLowerCase(), profile?.name);
+            walletMap.set(w.wallet_address.toLowerCase(), w.name ?? undefined);
           }
         }
 
@@ -180,9 +179,9 @@ export function RecipientSearchInput({
         } = await supabase.auth.getUser();
 
         const { data: walletsWithProfiles, error } = await supabase
-          .from('wallets')
+          .from('wallet_directory')
           .select(
-            'wallet_address, blockchain, profile_id, profiles(id, auth_user_id, name, email, username)'
+            'wallet_address, blockchain, profile_id, auth_user_id, name, email, username'
           )
           .in('blockchain', ['ARC', 'ARC-TESTNET']);
 
@@ -194,30 +193,23 @@ export function RecipientSearchInput({
         const queryLower = query.toLowerCase();
         const results: UserWallet[] = (walletsWithProfiles ?? [])
           .filter((w) => {
-            const profile = w.profiles as any;
-            if (!profile || profile.auth_user_id === user?.id) return false;
+            if (w.auth_user_id === user?.id) return false;
             return (
-              (profile.name &&
-                profile.name.toLowerCase().includes(queryLower)) ||
-              (profile.username &&
-                profile.username.toLowerCase().includes(queryLower)) ||
-              (profile.email &&
-                profile.email.toLowerCase().includes(queryLower)) ||
+              (w.name && w.name.toLowerCase().includes(queryLower)) ||
+              (w.username && w.username.toLowerCase().includes(queryLower)) ||
+              (w.email && w.email.toLowerCase().includes(queryLower)) ||
               (w.wallet_address &&
                 w.wallet_address.toLowerCase().includes(queryLower))
             );
           })
-          .map((w) => {
-            const profile = w.profiles as any;
-            return {
-              id: profile.id,
-              email: profile.email,
-              name: profile.name,
-              username: profile.username,
-              wallet_address: w.wallet_address,
-              blockchain: w.blockchain,
-            };
-          });
+          .map((w) => ({
+            id: w.profile_id,
+            email: w.email,
+            name: w.name,
+            username: w.username,
+            wallet_address: w.wallet_address,
+            blockchain: w.blockchain,
+          }));
 
         setSearchResults(results);
       } catch (error) {
