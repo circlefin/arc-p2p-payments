@@ -20,7 +20,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { createClient } from "@/lib/utils/supabase/client";
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser-client";
 import { GlobalContext } from "@/contexts/global-context";
 import { useRouter } from "next/navigation";
 import { ChangeEventHandler, useContext, useMemo, useState } from "react";
@@ -33,7 +33,7 @@ const phoneReplacement = {
 }
 
 export default function SignIn() {
-  const supabase = createClient()
+  const supabase = createSupabaseBrowserClient()
   const router = useRouter()
   const [phone, setPhone] = useState('')
   const [unmaskedPhone, setUnmaskedPhone] = useState('')

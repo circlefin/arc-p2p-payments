@@ -21,10 +21,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server-client";
 
 export async function GET(req: NextRequest) {
   try {
-    // Get the Supabase client
     const supabase = await createSupabaseServerClient();
 
-    // Get user session from Supabase
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -36,7 +34,6 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Get the user's auth ID from the session
     const authUserId = user.id;
 
     if (!authUserId) {
@@ -46,7 +43,6 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // First, get the profile associated with the auth user
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("id")
@@ -63,7 +59,6 @@ export async function GET(req: NextRequest) {
 
     const profileId = profile.id;
 
-    // Now fetch the wallet with the passkey credential using the profile_id
     const { data: passkeyCredential, error: walletError } = await supabase
       .from("wallets")
       .select("passkey_credential")
@@ -78,7 +73,6 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Get the passkey credential
     const credential = passkeyCredential;
 
     if (!credential) {
@@ -88,7 +82,6 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Return the credential
     return NextResponse.json({ credential });
   } catch (error) {
     console.error("Error in get-credential endpoint:", error);

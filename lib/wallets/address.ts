@@ -16,8 +16,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export let assistantId = ""; // set your assistant ID here
+import { isAddress } from "viem";
 
-if (assistantId === "") {
-  assistantId = process.env.OPENAI_ASSISTANT_ID || "";
+/** True for a well-formed 0x + 40 hex address (any case; checksums are not enforced). */
+export function isWalletAddress(value: unknown): value is string {
+  return typeof value === "string" && isAddress(value, { strict: false });
 }
+
+/** Addresses are compared and stored lower-cased so one wallet is one row. */
+export const normalizeAddress = (address: string) => address.trim().toLowerCase();
+
+export const sameAddress = (a: string, b: string) =>
+  normalizeAddress(a) === normalizeAddress(b);

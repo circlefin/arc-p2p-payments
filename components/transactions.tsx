@@ -30,7 +30,6 @@ import { Input } from "@/components/ui/input";
 
 const ARC_CHAIN_ID = arcTestnet.id;
 
-// Simple transaction format from API
 interface SimpleTransaction {
   hash: string;
   from: string;
@@ -46,7 +45,6 @@ interface SimpleTransaction {
   id: string;
 }
 
-// Response type for the transfers API
 interface TransfersResponse {
   transactions: SimpleTransaction[];
   pagination: {
@@ -57,7 +55,6 @@ interface TransfersResponse {
   error?: string;
 }
 
-// Database transaction type
 interface Transaction {
   id: string;
   status: string;
@@ -73,7 +70,7 @@ interface Transaction {
 interface Props {
   wallet: Wallet;
   profile: {
-    id: any;
+    id: string;
   } | null;
 }
 
@@ -84,9 +81,8 @@ async function syncTransactions(
   circleWalletId: string
 ) {
   try {
-    // Fetch transactions from Arc
     const arcResponse = await fetch(
-      `${baseUrl}/api/wallet/transactions`,
+      `/api/wallet/transactions`,
       {
         method: "POST",
         body: JSON.stringify({
@@ -146,7 +142,7 @@ async function syncTransactions(
         .eq("wallet_id", walletId);
 
       const existingIds = new Set(
-        existing?.map((t: any) => t.circle_transaction_id) || []
+        existing?.map((t: { circle_transaction_id: string }) => t.circle_transaction_id) || []
       );
 
       const newRecords = records.filter(
@@ -163,7 +159,6 @@ async function syncTransactions(
       }
     }
 
-    // Return all transactions from database
     const { data: allTransactions, error: fetchError } = await supabase
       .from("transactions")
       .select("*")
@@ -181,10 +176,6 @@ async function syncTransactions(
     return [];
   }
 }
-
-const baseUrl = process.env.NEXT_PUBLIC_VERCEL_URL
-  ? process.env.NEXT_PUBLIC_VERCEL_URL
-  : "http://localhost:3000";
 
 const supabase = createSupabaseBrowserClient();
 
@@ -214,7 +205,6 @@ export const Transactions: FunctionComponent<Props> = (props) => {
     );
   }, [formattedData, searchQuery]);
 
-  // Group transactions by month
   const groupedTransactions = useMemo(() => {
     const groups: Record<string, typeof formattedData> = {};
     const now = new Date();
@@ -250,7 +240,6 @@ export const Transactions: FunctionComponent<Props> = (props) => {
     return sortedGroups;
   }, [searchedData]);
 
-  // Transaction type display mapping
   const getTransactionTypeDisplay = (type: string) => {
     if (type === "USDC_TRANSFER_IN" || type === "received") {
       return "Payment received"

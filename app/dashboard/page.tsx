@@ -48,7 +48,6 @@ export default async function Dashboard() {
     return redirect("/sign-in");
   }
 
-  // Check for wallets in database
   const { data: wallets } = await supabase
     .schema("public")
     .from("wallets")
@@ -63,7 +62,6 @@ export default async function Dashboard() {
     return redirect(`/dashboard/setup-wallet?username=${crypto.randomUUID()}`);
   }
 
-  // Get the Arc wallet
   const arcWallet = wallets?.find(w => w.blockchain === "ARC");
 
   const primaryWallet = arcWallet || {
@@ -73,7 +71,6 @@ export default async function Dashboard() {
     blockchain: "ARC",
   };
 
-  // Create wallet models for UI (single wallet)
   const walletModels = arcWallet ? [{
     ...arcWallet,
     chain: "arc"

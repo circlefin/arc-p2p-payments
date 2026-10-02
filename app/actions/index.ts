@@ -19,7 +19,7 @@
 "use server";
 
 import { encodedRedirect } from "@/lib/utils/utils";
-import { createClient } from "@/lib/utils/supabase/server";
+import { createSupabaseServerClient } from "@/lib/supabase/server-client";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 
@@ -27,32 +27,25 @@ export const signInAction = async (formData: FormData) => {
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
   const isPasskeyLogin = formData.get("passkey_login") === "true";
-  const supabase = await createClient();
+  const supabase = await createSupabaseServerClient();
 
   if (isPasskeyLogin) {
-    // For passkey logins, we'll try to sign in with email and a predefined password
-    // This is not secure but works as a fallback
-    // The email should be verified by checking the passkey_credential in wallets
+    // Passkey logins fall back to a shared default password, then to OTP.
 
     try {
-      // First check if this is a legitimate passkey login by checking cookies
       const cookieStore = await cookies();
       const passkeyEmail = cookieStore.get("passkey_email")?.value;
 
       if (passkeyEmail && passkeyEmail === email) {
-        // This is a legitimate passkey login, so we can use a special flow
-        // Try a standard login first with a default password (this would be set in your initial user setup)
         const { data, error } = await supabase.auth.signInWithPassword({
           email,
-          password: "passkey-default-pw", // You would set this during user setup
+          password: "passkey-default-pw",
         });
 
         if (!error) {
-          // Successfully logged in
           return redirect("/dashboard");
         }
 
-        // If that fails, use OTP
         const { error: otpError } = await supabase.auth.signInWithOtp({
           email,
           options: {
@@ -68,7 +61,6 @@ export const signInAction = async (formData: FormData) => {
           );
         }
 
-        // Successfully initiated OTP login
         return encodedRedirect(
           "success",
           "/sign-up",
@@ -81,7 +73,6 @@ export const signInAction = async (formData: FormData) => {
     }
   }
 
-  // Regular password login
   const { error } = await supabase.auth.signInWithPassword({
     email,
     password,
@@ -96,7 +87,7 @@ export const signInAction = async (formData: FormData) => {
 
 export const forgotPasswordAction = async (formData: FormData) => {
   const email = formData.get("email")?.toString();
-  const supabase = await createClient();
+  const supabase = await createSupabaseServerClient();
   const origin = (await headers()).get("origin");
   const callbackUrl = formData.get("callbackUrl")?.toString();
 
@@ -129,7 +120,7 @@ export const forgotPasswordAction = async (formData: FormData) => {
 };
 
 export const resetPasswordAction = async (formData: FormData) => {
-  const supabase = await createClient();
+  const supabase = await createSupabaseServerClient();
 
   const password = formData.get("password") as string;
   const confirmPassword = formData.get("confirmPassword") as string;
@@ -166,7 +157,7 @@ export const resetPasswordAction = async (formData: FormData) => {
 };
 
 export const signOutAction = async () => {
-  const supabase = await createClient();
+  const supabase = await createSupabaseServerClient();
   await supabase.auth.signOut();
   return redirect("/sign-in");
 };

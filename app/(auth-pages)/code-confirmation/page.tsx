@@ -28,7 +28,7 @@ import {
 import { GlobalContext } from "@/contexts/global-context";
 import { useContext, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/utils/supabase/client";
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser-client";
 import {
   toPasskeyTransport,
   toWebAuthnCredential,
@@ -39,11 +39,10 @@ import { ArrowLeft } from "lucide-react";
 const clientKey = process.env.NEXT_PUBLIC_CIRCLE_CLIENT_KEY;
 const clientUrl = process.env.NEXT_PUBLIC_CIRCLE_CLIENT_URL;
 
-// Create Circle transports
 const passkeyTransport = toPasskeyTransport(clientUrl, clientKey);
 
 export default function CodeConfirmation() {
-  const supabase = createClient();
+  const supabase = createSupabaseBrowserClient();
   const router = useRouter();
   const { phone } = useContext(GlobalContext);
 
@@ -54,10 +53,6 @@ export default function CodeConfirmation() {
     }
   }, [phone, router]);
 
-  if (!phone) {
-    return null;
-  }
-
   const [loading, setLoading] = useState(false);
   const [confirmationCode, setConfirmationCode] = useState("");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -67,6 +62,10 @@ export default function CodeConfirmation() {
     () => confirmationCode.length !== 6,
     [confirmationCode],
   );
+
+  if (!phone) {
+    return null;
+  }
 
   const handleCodeValidation = async () => {
     if (isConfirmationCodeInvalid) {

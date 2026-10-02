@@ -18,23 +18,20 @@
 
 import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseServerClient } from "@/lib/supabase/server-client";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin-client";
 import { SupabaseClient } from "@supabase/supabase-js";
-
-const baseUrl = process.env.NEXT_PUBLIC_VERCEL_URL
-  ? process.env.NEXT_PUBLIC_VERCEL_URL
-  : "http://localhost:3000";
+import { refreshWalletBalance } from "@/lib/wallets/refresh-balance";
+import { normalizeAddress } from "@/lib/wallets/address";
 
 const ARC_CHAIN_ID = 5042002;
 const ARC_NETWORK_NAME = "Arc Testnet";
 
-// Type definitions
 interface Wallet {
   id: string;
   wallet_address: string;
   balance?: number;
   profile_id: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 interface BaseNotification {
@@ -74,7 +71,14 @@ type NotificationType =
 
 type TransactionType = "USDC_TRANSFER_IN" | "USDC_TRANSFER_OUT";
 
-// Find wallet by address
+// A 20-byte address, with or without the 0x prefix. Checked before it goes near a
+// query, because ilike treats % and _ as wildcards.
+const ADDRESS = /^(0x)?[0-9a-f]{40}$/;
+
+// Find wallet by address. Queries for the one wallet rather than reading a page of
+// them: the old version fetched the first 50 wallets (passkey credentials included)
+// and searched those in memory, so once there were more than 50, most wallets were
+// never found and their transactions and balances were silently dropped.
 async function findWalletByAddress(
   address: string
 ): Promise<Wallet | null> {
@@ -83,69 +87,35 @@ async function findWalletByAddress(
     return null;
   }
 
-  const supabase = await createSupabaseServerClient();
-
-  const normalizedAddress = address.trim().toLowerCase();
-
-  const { data: allWallets, error: allWalletsError } = await supabase
-    .from("wallets")
-    .select("*")
-    .limit(50);
-
-  if (allWalletsError) {
-    console.error("Error fetching wallets:", allWalletsError);
+  const normalizedAddress = normalizeAddress(address);
+  if (!ADDRESS.test(normalizedAddress)) {
+    console.error("Ignoring a malformed wallet address in a notification");
     return null;
   }
 
-  if (allWallets && allWallets.length > 0) {
-    // Exact match with ARC blockchain
-    const exactMatch = allWallets.find(
-      (wallet) =>
-        wallet.wallet_address.toLowerCase() === normalizedAddress &&
-        wallet.blockchain === "ARC"
-    );
+  const supabase = createSupabaseAdminClient();
 
-    if (exactMatch) {
-      return exactMatch;
+  // Some notifications omit or add the 0x prefix.
+  const bare = normalizedAddress.replace(/^0x/, "");
+  for (const candidate of [`0x${bare}`, bare]) {
+    const { data, error } = await supabase
+      .from("wallets")
+      .select("id, wallet_address, profile_id, balance")
+      .ilike("wallet_address", candidate)
+      .eq("blockchain", "ARC")
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.error("Error looking up wallet:", error);
+      return null;
     }
-
-    // Try without 0x prefix if original has it
-    if (normalizedAddress.startsWith("0x")) {
-      const withoutPrefix = normalizedAddress.substring(2);
-      const prefixMatch = allWallets.find(
-        (wallet) => wallet.wallet_address.toLowerCase() === withoutPrefix
-      );
-
-      if (prefixMatch) {
-        return prefixMatch;
-      }
-    } else {
-      const withPrefix = "0x" + normalizedAddress;
-      const prefixMatch = allWallets.find(
-        (wallet) => wallet.wallet_address.toLowerCase() === withPrefix
-      );
-
-      if (prefixMatch) {
-        return prefixMatch;
-      }
-    }
-
-    // Fuzzy match as last resort
-    const cleanedAddress = normalizedAddress.replace(/[^a-f0-9]/g, "");
-    const fuzzyMatch = allWallets.find(
-      (wallet) =>
-        wallet.wallet_address.toLowerCase().replace(/[^a-f0-9]/g, "") ===
-        cleanedAddress
-    );
-
-    if (fuzzyMatch) {
-      return fuzzyMatch;
-    }
+    if (data) return data as Wallet;
   }
+
   return null;
 }
 
-// Update wallet balance after transactions
 async function updateWalletBalance(
   walletAddress: string
 ): Promise<void> {
@@ -157,37 +127,14 @@ async function updateWalletBalance(
       return;
     }
 
-    const supabase = await createSupabaseServerClient();
-
-    // Call wallet balance API
-    const response = await fetch(`${baseUrl}/api/wallet/balance`, {
-      method: "POST",
-      body: JSON.stringify({
-        walletId: wallet.wallet_address,
-        blockchain: "arc",
-      }),
-      headers: { "Content-Type": "application/json" },
-    });
-
-    if (!response.ok) {
-      console.error(`Balance API error: ${response.status}`);
-      return;
-    }
-
-    const { balance } = await response.json();
-
-    // Update wallet balance in database
-    await supabase
-      .from("wallets")
-      .update({ balance })
-      .eq("wallet_address", wallet.wallet_address)
-      .eq("blockchain", "ARC");
+    // Read straight from Circle. This used to call our own /api/wallet/balance over
+    // HTTP, which is why that route had to be open to unauthenticated callers.
+    await refreshWalletBalance(wallet);
   } catch (error) {
     console.error("Failed to update wallet balance:", error);
   }
 }
 
-// Process transaction once wallet is found
 async function processTransaction(
   wallet: Wallet,
   transactionType: TransactionType,
@@ -221,14 +168,13 @@ async function processTransaction(
 
   const { data: existing } = await supabase
     .from("transactions")
-    .select("id, amount, circle_contract_address")
+    .select("id, amount, status, circle_contract_address")
     .eq("circle_transaction_id", txHash)
     .eq("wallet_id", wallet.id)
     .single();
 
   if (existing) {
-    // Update existing record with better data when available
-    const updates: Record<string, any> = {};
+    const updates: Record<string, unknown> = {};
     if (existing.status !== state) updates.status = state;
     if (parsedAmount > 0 && Number(existing.amount) === 0) updates.amount = parsedAmount;
     if (counterpartyAddress && existing.circle_contract_address !== counterpartyAddress) {
@@ -267,7 +213,6 @@ async function processTransaction(
   }
 }
 
-// Handle webhook notification
 async function handleWebhookNotification(
   notification:
     | TransfersNotification
@@ -275,10 +220,9 @@ async function handleWebhookNotification(
     | UserOperationNotification,
   notificationType: NotificationType
 ): Promise<void> {
-  const supabase = await createSupabaseServerClient();
+  const supabase = createSupabaseAdminClient();
 
   try {
-    // Handle Circle transfers
     if (notificationType === "transfers") {
       const transferNotification = notification as TransfersNotification;
       const { id, state } = transferNotification;
@@ -301,7 +245,6 @@ async function handleWebhookNotification(
           .eq("id", tx.id);
       }
 
-      // Update balance for completed transactions
       if (state === "COMPLETE") {
         let walletAddress = notification.walletAddress;
 
@@ -319,7 +262,6 @@ async function handleWebhookNotification(
       return;
     }
 
-    // Handle modular wallet user operations
     if (notificationType === "modularWallet.userOperation") {
       const userOpNotification = notification as UserOperationNotification;
       const { state, sender } = userOpNotification;
@@ -350,7 +292,6 @@ async function handleWebhookNotification(
       return;
     }
 
-    // Handle modular wallet transfers (inbound/outbound)
     if (notificationType.startsWith("modularWallet")) {
       const modularNotification = notification as ModularWalletNotification;
       const { state, from, to, walletAddress } = modularNotification;
@@ -365,7 +306,6 @@ async function handleWebhookNotification(
         ? "USDC_TRANSFER_IN"
         : "USDC_TRANSFER_OUT";
 
-      // The counterparty is who we sent to (outbound) or received from (inbound)
       const counterpartyAddress = isInbound ? from : to;
 
       let relevantAddress = walletAddress;
@@ -425,7 +365,6 @@ async function handleWebhookNotification(
   }
 }
 
-// Verify Circle's signature
 async function verifyCircleSignature(
   bodyString: string,
   signature: string,
@@ -446,7 +385,6 @@ async function verifyCircleSignature(
   }
 }
 
-// Get Circle's public key
 async function getCirclePublicKey(keyId: string): Promise<string> {
   if (!process.env.CIRCLE_API_KEY) {
     throw new Error("Circle API key is not set");
@@ -473,7 +411,6 @@ async function getCirclePublicKey(keyId: string): Promise<string> {
   return `-----BEGIN PUBLIC KEY-----\n${rawPublicKey.match(/.{1,64}/g)?.join("\n")}\n-----END PUBLIC KEY-----`;
 }
 
-// Main webhook handler
 export async function POST(req: NextRequest) {
   try {
     const signature = req.headers.get("x-circle-signature");
@@ -486,16 +423,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const body = await req.json();
-    const bodyString = JSON.stringify(body);
+    // Circle signs the exact bytes it sent, so verify those, not a re-serialization.
+    const rawBody = await req.text();
 
     const isVerified = await verifyCircleSignature(
-      bodyString,
+      rawBody,
       signature,
       keyId
     );
     if (!isVerified) {
       return NextResponse.json({ error: "Invalid signature" }, { status: 403 });
+    }
+
+    let body;
+    try {
+      body = JSON.parse(rawBody);
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     }
 
     await handleWebhookNotification(body.notification, body.notificationType);
@@ -511,7 +455,6 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// Handle HEAD requests
 export async function HEAD() {
   return NextResponse.json({}, { status: 200 });
 }

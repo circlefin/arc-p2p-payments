@@ -20,8 +20,15 @@ import { type NextRequest, NextResponse } from "next/server";
 import axios from "axios";
 import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server-client";
+import {
+  forbidden,
+  getAuthenticatedUser,
+  getOwnWallet,
+  unauthorized,
+} from "@/lib/auth/session";
+import { sameAddress } from "@/lib/wallets/address";
+import { refreshWalletBalance } from "@/lib/wallets/refresh-balance";
 
-// Schema validation
 const WalletIdSchema = z.object({
   walletId: z.string(),
   blockchain: z.literal("arc"),
@@ -38,6 +45,13 @@ export async function POST(
   req: NextRequest,
 ): Promise<NextResponse<WalletBalanceResponse>> {
   try {
+    // Each call spends the app's Circle API quota, so it is for signed-in users, and
+    // only for their own wallet. (The Circle webhook refreshes balances itself,
+    // through lib/wallets/refresh-balance, and no longer calls this route.)
+    const supabase = await createSupabaseServerClient();
+    const user = await getAuthenticatedUser(supabase);
+    if (!user) return unauthorized() as NextResponse<WalletBalanceResponse>;
+
     const body = await req.json();
     const parseResult = WalletIdSchema.safeParse(body);
 
@@ -49,64 +63,14 @@ export async function POST(
     }
 
     const { walletId } = parseResult.data;
-    const normalizedWalletId = walletId.toLowerCase();
 
-    // Get the Supabase client
-    const supabase = await createSupabaseServerClient();
-
-    // Fetch the wallet information from the database
-    const { data: wallet, error: walletError } = await supabase
-      .from("wallets")
-      .select("*")
-      .eq("wallet_address", normalizedWalletId)
-      .eq("blockchain", "ARC")
-      .single();
-
-    if (walletError || !wallet) {
-      console.error("Error fetching wallet:", walletError);
-      return NextResponse.json(
-        { error: "Wallet not found in database" },
-        { status: 404 },
-      );
-    }
-
-    // Get the wallet address
-    const walletAddress = wallet.wallet_address;
-
-    if (!walletAddress) {
-      console.error("Wallet address not found in database record");
-      return NextResponse.json(
-        { error: "Wallet address not found in database record" },
-        { status: 400 },
-      );
+    const ownWallet = await getOwnWallet(supabase, user.id);
+    if (!ownWallet || !sameAddress(ownWallet.wallet_address, walletId)) {
+      return forbidden() as NextResponse<WalletBalanceResponse>;
     }
 
     try {
-      // Use the blockchain + address endpoint to get balances
-      const balanceResponse = await axios.get(
-        `https://api.circle.com/v1/w3s/buidl/wallets/ARC-TESTNET/${walletAddress}/balances`,
-        {
-          headers: {
-            "X-Request-Id": crypto.randomUUID(),
-            Authorization: `Bearer ${process.env.CIRCLE_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-        },
-      );
-
-      const usdcBalance =
-        balanceResponse.data?.data?.tokenBalances?.find(
-          (balance: any) => balance.token?.symbol === "USDC",
-        )?.amount || "0";
-
-      // Update wallet balance in database
-      await supabase
-        .from("wallets")
-        .update({ balance: usdcBalance })
-        .eq("wallet_address", normalizedWalletId)
-        .eq("blockchain", "ARC");
-
-      return NextResponse.json({ balance: usdcBalance });
+      return NextResponse.json({ balance: await refreshWalletBalance(ownWallet) });
     } catch (error) {
       console.error("Error fetching balance from Circle API:", error);
 
@@ -117,7 +81,6 @@ export async function POST(
         });
       }
 
-      // Return 0 balance instead of error for better UX
       return NextResponse.json({ balance: "0" });
     }
   } catch (error) {
@@ -130,7 +93,6 @@ export async function POST(
       );
     }
 
-    // For any other errors, return 0 balance for better UX
     return NextResponse.json({ balance: "0" });
   }
 }

@@ -17,7 +17,19 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/utils/supabase/server";
+import { createSupabaseServerClient } from "@/lib/supabase/server-client";
+import { isWalletAddress, normalizeAddress } from "@/lib/wallets/address";
+
+/** 23505 = the address already belongs to another wallet (see migration 20260918120000). */
+function walletWriteFailed(error: { code?: string }) {
+  if (error.code === "23505") {
+    return NextResponse.json(
+      { error: "That wallet address is already registered to another account" },
+      { status: 409 }
+    );
+  }
+  return NextResponse.json({ error: "Could not create wallet" }, { status: 500 });
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -30,8 +42,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Get user session
-    const supabase = await createClient();
+    const supabase = await createSupabaseServerClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -40,7 +51,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get user profile
     const { data: profileData, error: profileError } = await supabase
       .from("profiles")
       .select()
@@ -53,40 +63,46 @@ export async function POST(req: NextRequest) {
     }
 
     // Parse the credential
-    const parsedCredential = JSON.parse(credential);
+    let parsedCredential;
+    try {
+      parsedCredential = JSON.parse(credential);
+    } catch {
+      return NextResponse.json({ error: "Credential must be valid JSON" }, { status: 400 });
+    }
 
-    // Determine which address to use
-    let walletAddress;
+    // Determine which address to use. It becomes the address other people pay, so it
+    // must be a real address, never free text.
+    let walletAddress: string;
 
     if (circleAddress) {
-      walletAddress = circleAddress;
+      if (!isWalletAddress(circleAddress)) {
+        return NextResponse.json({ error: "circleAddress is not a valid address" }, { status: 400 });
+      }
+      walletAddress = normalizeAddress(circleAddress);
     } else {
-      const publicKey = parsedCredential.publicKey;
+      const publicKey = parsedCredential?.publicKey;
 
       const isValidPublicKey =
-        publicKey &&
+        typeof publicKey === "string" &&
         publicKey.startsWith("0x") &&
         /^0x[0-9a-fA-F]{40,}$/.test(publicKey);
 
       if (!isValidPublicKey) {
-        throw new Error(`Invalid public key format: ${publicKey}`);
+        return NextResponse.json({ error: "Invalid public key format" }, { status: 400 });
       }
 
-      walletAddress = publicKey.slice(0, 42).toLowerCase();
+      walletAddress = normalizeAddress(publicKey.slice(0, 42));
     }
 
-    // Store the credential string for database storage
     const credentialString =
       typeof credential === "string" ? credential : JSON.stringify(credential);
 
-    // Check if wallet record exists for this profile
     const { data: existingWallets } = await supabase
       .from("wallets")
       .select()
       .eq("profile_id", profileData.id);
 
     if (existingWallets && existingWallets.length > 0) {
-      // Update existing Arc wallet
       const arcWallet = existingWallets.find(
         (w) => w.blockchain === "ARC"
       );
@@ -103,9 +119,9 @@ export async function POST(req: NextRequest) {
 
         if (updateError) {
           console.error("Error updating Arc wallet:", updateError);
+          return walletWriteFailed(updateError);
         }
       } else {
-        // Create new Arc wallet if only old chain wallets exist
         const { error: insertError } = await supabase.from("wallets").insert({
           profile_id: profileData.id,
           wallet_address: walletAddress,
@@ -119,10 +135,10 @@ export async function POST(req: NextRequest) {
 
         if (insertError) {
           console.error("Error inserting Arc wallet:", insertError);
+          return walletWriteFailed(insertError);
         }
       }
     } else {
-      // Create new wallet record (Arc only)
       const { error: insertError } = await supabase.from("wallets").insert({
         profile_id: profileData.id,
         wallet_address: walletAddress,
@@ -136,14 +152,10 @@ export async function POST(req: NextRequest) {
 
       if (insertError) {
         console.error("Error inserting new wallet:", insertError);
-        return NextResponse.json(
-          { error: "Could not create wallet" },
-          { status: 500 }
-        );
+        return walletWriteFailed(insertError);
       }
     }
 
-    // Update user metadata to mark wallet setup as complete
     const { error: updateUserError } = await supabase.auth.updateUser({
       data: {
         wallet_setup_complete: true,
@@ -155,7 +167,6 @@ export async function POST(req: NextRequest) {
       console.error("Error updating user metadata:", updateUserError);
     }
 
-    // Set a cookie to indicate successful wallet setup
     const headers = new Headers();
     headers.append(
       "Set-Cookie",

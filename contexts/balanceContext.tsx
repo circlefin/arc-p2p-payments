@@ -21,7 +21,6 @@
 import React, { createContext, useContext, ReactNode } from "react";
 import { useWalletBalances } from "@/hooks/use-wallet-balances";
 
-// Define the shape of our balance context
 interface BalanceContextType {
   balance: {
     native: number;
@@ -32,10 +31,8 @@ interface BalanceContextType {
   refreshBalances: () => Promise<void>;
 }
 
-// Create the context with a default value
 const BalanceContext = createContext<BalanceContextType | undefined>(undefined);
 
-// Custom hook for using the balance context
 export function useBalance() {
   const context = useContext(BalanceContext);
   if (context === undefined) {
@@ -44,19 +41,15 @@ export function useBalance() {
   return context;
 }
 
-// Balance Provider component
 export function BalanceProvider({ children }: { children: ReactNode }) {
-  // Use the existing hook
   const { balance, isRefreshing, refreshBalances } = useWalletBalances();
 
-  // Create the value object once
   const value = {
     balance,
     isRefreshing,
     refreshBalances,
   };
 
-  // Provide the balance context to all children
   return (
     <BalanceContext.Provider value={value}>
       {children}

@@ -26,7 +26,6 @@ export default async function Layout({
 }) {
   const supabase = await createSupabaseServerComponentClient();
 
-  // Use getUser() instead of getSession() for security
   const {
     data: { user },
   } = await supabase.auth.getUser();

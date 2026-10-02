@@ -14,10 +14,8 @@
 --
 -- SPDX-License-Identifier: Apache-2.0
 
--- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Profiles table (instead of Users)
 CREATE TABLE profiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id),
     name VARCHAR NOT NULL,
@@ -26,16 +24,13 @@ CREATE TABLE profiles (
     is_active BOOLEAN DEFAULT true
 );
 
--- Enable RLS on profiles
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 
--- Create profiles policies
 CREATE POLICY "Profiles are viewable by everyone" ON profiles 
     FOR SELECT USING (is_active = true);
 CREATE POLICY "Users can update own profile" ON profiles 
     FOR UPDATE USING (auth.uid() = id);
 
--- Create improved handle_new_user function with error handling
 CREATE OR REPLACE FUNCTION handle_new_user()
 RETURNS TRIGGER
 SECURITY DEFINER SET search_path = public
@@ -44,7 +39,6 @@ AS $$
 DECLARE 
     display_name TEXT;
 BEGIN
-    -- Get display name from raw_user_meta_data if available, otherwise use email
     display_name := COALESCE(
         (NEW.raw_user_meta_data->>'full_name'),
         split_part(NEW.email, '@', 1),
@@ -63,19 +57,16 @@ BEGIN
 END;
 $$;
 
--- Create the trigger with proper timing and security
 CREATE TRIGGER on_auth_user_created
     AFTER INSERT ON auth.users
     FOR EACH ROW
     EXECUTE FUNCTION handle_new_user();
 
--- Grant necessary permissions
 GRANT ALL ON public.profiles TO authenticated;
 GRANT ALL ON public.profiles TO service_role;
 GRANT EXECUTE ON FUNCTION handle_new_user() TO authenticated;
 GRANT EXECUTE ON FUNCTION handle_new_user() TO service_role;
 
--- Wallets table
 CREATE TABLE wallets (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES profiles(id),
@@ -88,10 +79,8 @@ CREATE TABLE wallets (
     is_active BOOLEAN DEFAULT true
 );
 
--- Enable RLS on wallets
 ALTER TABLE wallets ENABLE ROW LEVEL SECURITY;
 
--- Create wallets policies
 CREATE POLICY "Users can view own wallets" ON wallets 
     FOR SELECT USING (auth.uid() = user_id);
 CREATE POLICY "Users can update own wallets" ON wallets 
@@ -99,7 +88,6 @@ CREATE POLICY "Users can update own wallets" ON wallets
 CREATE POLICY "Users can insert own wallets" ON wallets 
     FOR INSERT WITH CHECK (auth.uid() = user_id);
 
--- Transactions table
 CREATE TABLE transactions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     wallet_id UUID NOT NULL REFERENCES wallets(id),
@@ -113,21 +101,17 @@ CREATE TABLE transactions (
     description TEXT
 );
 
--- Enable RLS on transactions
 ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
 
--- Create transactions policies
 CREATE POLICY "Users can view own transactions" ON transactions 
     FOR SELECT USING (auth.uid() = user_id);
 CREATE POLICY "Users can insert own transactions" ON transactions 
     FOR INSERT WITH CHECK (auth.uid() = user_id);
 
--- Add indexes for foreign keys and frequently queried columns
 CREATE INDEX idx_wallets_user_id ON wallets(user_id);
 CREATE INDEX idx_transactions_wallet_id ON transactions(wallet_id);
 CREATE INDEX idx_transactions_user_id ON transactions(user_id);
 
--- Add triggers for updated_at timestamps
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -146,17 +130,14 @@ CREATE TRIGGER update_wallets_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
--- Grant additional permissions if needed
 GRANT USAGE ON SCHEMA public TO anon;
 GRANT USAGE ON SCHEMA public TO authenticated;
 GRANT USAGE ON SCHEMA public TO service_role;
 
--- Grant usage of uuid-ossp functions
 GRANT EXECUTE ON FUNCTION uuid_generate_v4() TO anon;
 GRANT EXECUTE ON FUNCTION uuid_generate_v4() TO authenticated;
 GRANT EXECUTE ON FUNCTION uuid_generate_v4() TO service_role;
 
--- Grant table permissions to authenticated users
 GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO authenticated;
 GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role;

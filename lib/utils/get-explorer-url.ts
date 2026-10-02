@@ -16,7 +16,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// Explorer URL for Arc Testnet
 export const getExplorerUrl = (address: string) => {
   return `https://testnet.arcscan.app/address/${address}`;
 };

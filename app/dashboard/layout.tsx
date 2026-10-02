@@ -29,7 +29,6 @@ interface Props {
 export default async function Layout({ children }: Props) {
   const supabase = await createSupabaseServerComponentClient();
 
-  // Use getUser() instead of getSession() for security
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -48,7 +47,6 @@ export default async function Layout({ children }: Props) {
     return redirect("/sign-in");
   }
 
-  // Check for wallets in database
   const { data: wallets } = await supabase
     .schema("public")
     .from("wallets")
@@ -56,7 +54,7 @@ export default async function Layout({ children }: Props) {
     .eq("profile_id", profile.id);
 
   return (
-    <Tabs className="relative flex flex-col h-full px-5 pb-19" defaultValue="balance">
+    <Tabs className="relative flex flex-col h-full px-5 pb-28" defaultValue="balance">
       {children}
       <BottomTabNavigation />
     </Tabs>

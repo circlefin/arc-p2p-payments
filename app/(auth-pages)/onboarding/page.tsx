@@ -18,17 +18,18 @@
 
 "use client"
 
+import { getErrorMessage } from "@/lib/utils/utils";
 import { Button } from "@/components/ui/button";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/utils/supabase/client";
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser-client";
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 
 export default function Onboarding() {
-  const supabase = createClient()
+  const supabase = createSupabaseBrowserClient()
   const router = useRouter()
 
   const [loading, setLoading] = useState(false)
@@ -48,7 +49,6 @@ export default function Onboarding() {
         data: { user },
       } = await supabase.auth.getUser();
 
-      // Create initial profile
       const { error: profileError } = await supabase
         .from("profiles")
         .insert({
@@ -60,8 +60,8 @@ export default function Onboarding() {
         console.error("Error while attempting to create user:", profileError);
         return
       }
-    } catch (error: any) {
-      console.error("Could not create user:", error.message);
+    } catch (error) {
+      console.error("Could not create user:", getErrorMessage(error));
       alert("Could not create user")
       return
     }

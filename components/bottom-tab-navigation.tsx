@@ -21,15 +21,19 @@ import { type MouseEventHandler, useEffect, useMemo, useState } from "react";
 import { TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { User } from "@supabase/supabase-js";
 import { History, Wallet } from "lucide-react";
-import { createClient } from "@/lib/utils/supabase/client";
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser-client";
 import millify from "millify";
 import { useWeb3 } from "@/components/web3-provider";
 import { usePathname, useRouter } from "next/navigation";
 import { useBalance } from "@/contexts/balanceContext";
 import { toast } from "sonner";
 
+/** One nav pill: fixed-width column, icon over label, tinted when active. */
+const triggerClass =
+  "flex w-[100px] flex-col items-center gap-0.5 rounded-[40px] px-0 py-2 transition-colors duration-200 data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:shadow-none";
+
 export default function BottomTabNavigation() {
-  const supabase = createClient();
+  const supabase = createSupabaseBrowserClient();
   const [user, setUser] = useState<User | null>();
   const { account } = useWeb3();
   const { balance: web3Balance, refreshBalances, isRefreshing } = useBalance();
@@ -45,7 +49,6 @@ export default function BottomTabNavigation() {
     router.push("/dashboard");
   };
 
-  // Simplified balance loading effect
   useEffect(() => {
     const loadInitialBalances = async () => {
       if (account.address && !isRefreshing) {
@@ -80,7 +83,6 @@ export default function BottomTabNavigation() {
     return result;
   }
 
-  // Memoized balance formatting
   const formattedWalletBalance = useMemo(() => {
     const chainBalance = web3Balance?.token || 0;
 
@@ -109,16 +111,28 @@ export default function BottomTabNavigation() {
   if (!user?.user_metadata.wallet_setup_complete) return null;
 
   return (
-    <TabsList className="absolute bottom-0 left-0 grid w-full grid-cols-3 h-auto p-2">
-      <TabsTrigger onClick={handleTabChange} value="balance">
-        <p className="text-lg">${formattedWalletBalance}</p>
-      </TabsTrigger>
-      <TabsTrigger value="wallet">
-        <Wallet />
-      </TabsTrigger>
-      <TabsTrigger value="transactions">
-        <History />
-      </TabsTrigger>
-    </TabsList>
+    // Floating pill nav: the trigger classes restate the defaults so tailwind-merge drops the docked treatment.
+    <div className="absolute inset-x-0 bottom-0 z-10 flex justify-center px-5 pt-3 pb-6">
+      <TabsList className="flex h-auto items-center gap-2 rounded-full rounded-t-full bg-card/80 p-0 px-2 py-2 text-muted-foreground/50 shadow-[0_8px_24px_rgba(0,0,0,0.35)] ring-1 ring-border backdrop-blur-lg">
+        <TabsTrigger
+          onClick={handleTabChange}
+          value="balance"
+          className={triggerClass}
+        >
+          <span className="flex h-6 items-center text-lg leading-none tabular-nums">
+            ${formattedWalletBalance}
+          </span>
+          <span className="text-xs font-medium tracking-tight">Balance</span>
+        </TabsTrigger>
+        <TabsTrigger value="wallet" className={triggerClass}>
+          <Wallet className="size-6" />
+          <span className="text-xs font-medium tracking-tight">Wallet</span>
+        </TabsTrigger>
+        <TabsTrigger value="transactions" className={triggerClass}>
+          <History className="size-6" />
+          <span className="text-xs font-medium tracking-tight">Activity</span>
+        </TabsTrigger>
+      </TabsList>
+    </div>
   );
 }

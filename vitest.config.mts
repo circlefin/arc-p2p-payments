@@ -16,9 +16,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// This check can be removed
-// it is just for tutorial purposes
+import { fileURLToPath } from "node:url";
+import { defineConfig } from "vitest/config";
 
-export const hasEnvVars =
-  process.env.NEXT_PUBLIC_SUPABASE_URL &&
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+// Unit tests: no network, database or wallet credentials required.
+export default defineConfig({
+  resolve: {
+    alias: { "@": fileURLToPath(new URL(".", import.meta.url)) },
+  },
+  test: {
+    environment: "node",
+    include: ["tests/unit/**/*.test.ts"],
+    restoreMocks: true,
+  },
+});

@@ -19,7 +19,7 @@
 "use client";
 
 import { GlobalContextProvider } from "@/contexts/global-context";
-import { createClient } from "@/lib/utils/supabase/client";
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser-client";
 import type { User } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -30,7 +30,7 @@ export default function Layout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
-  const supabase = createClient();
+  const supabase = createSupabaseBrowserClient();
   const [user, setUser] = useState<User | null>()
 
   const getUser = async () => {

@@ -17,13 +17,12 @@
  */
 
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/utils/supabase/server";
+import { createSupabaseServerClient } from "@/lib/supabase/server-client";
 
 export async function GET() {
   try {
-    const supabase = await createClient();
+    const supabase = await createSupabaseServerClient();
 
-    // Get the current session
     const {
       data: { user },
     } = await supabase.auth.getUser();

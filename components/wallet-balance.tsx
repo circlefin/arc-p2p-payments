@@ -21,10 +21,8 @@
 import { useCallback } from "react";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Button } from "@/components/ui/button";
+import { FundWalletButton } from "@/components/fund-wallet-button";
 import { useBalance } from "@/contexts/balanceContext";
-
-const CIRCLE_FAUCET_URL = "https://faucet.circle.com/";
 
 export function WalletBalance() {
   const { balance, isRefreshing, refreshBalances } = useBalance();
@@ -83,14 +81,7 @@ export function WalletBalance() {
         </svg>
         {isRefreshing ? 'Refreshing...' : 'Refresh Balance'}
       </button>
-      <Button
-        className="flex-1 py-3 text-lg font-semibold rounded-full"
-        asChild
-      >
-        <a href={CIRCLE_FAUCET_URL} target="_blank" rel="noopener noreferrer">
-          Fund Wallet
-        </a>
-      </Button>
+      <FundWalletButton />
     </>
   );
 }

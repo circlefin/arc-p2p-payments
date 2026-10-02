@@ -20,12 +20,12 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import { PasskeySetup } from '@/components/passkey-setup';
-import { createClient } from '@/lib/utils/supabase/client';
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser-client";
 import { useEffect, useState } from 'react';
 
 export default function SetupWalletPage() {
   const router = useRouter();
-  const supabase = createClient();
+  const supabase = createSupabaseBrowserClient();
   const searchParams = useSearchParams();
   const username = searchParams.get('username') || '';
   const [walletSetupComplete, setWalletSetupComplete] = useState<boolean>()

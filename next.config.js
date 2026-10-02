@@ -27,13 +27,6 @@ if (!CIRCLE_ENTITY_SECRET?.trim()) {
 }
 
 /** @type {import('next').NextConfig} */
-const nextConfig = {
-  serverExternalPackages: ["pdf-parse"],
-
-  // Add allowedDevOrigins for your Replit URL - using exact format from documentation
-  allowedDevOrigins: [
-    '64b3466d-48ab-43ac-94e1-df5a0c65600c-00-3dcvk8y4qe4v6.kirk.replit.dev'
-  ]
-};
+const nextConfig = {};
 
 module.exports = nextConfig;

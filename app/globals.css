@@ -19,124 +19,155 @@
 @import "tailwindcss";
 @plugin "tailwindcss-animate";
 
+/* Retained so the handful of `dark:` utilities still in the tree resolve. The
+   app now ships a single theme, and <html> always carries `.dark`, so these
+   always match — there is no light variant to fall back to. */
 @custom-variant dark (&:is(.dark *));
 
-:root {
-  --background: hsl(0 0% 100%);
-  --foreground: hsl(222.2 84% 4.9%);
-  --card: hsl(0 0% 100%);
-  --card-foreground: hsl(222.2 84% 4.9%);
-  --popover: hsl(0 0% 100%);
-  --popover-foreground: hsl(222.2 84% 4.9%);
-  --primary: hsl(221.2 83.2% 53.3%);
-  --primary-foreground: hsl(210 40% 98%);
-  --secondary: hsl(210 40% 96.1%);
-  --secondary-foreground: hsl(222.2 47.4% 11.2%);
-  --muted: hsl(210 40% 96.1%);
-  --muted-foreground: hsl(215.4 16.3% 46.9%);
-  --accent: hsl(210 40% 96.1%);
-  --accent-foreground: hsl(222.2 47.4% 11.2%);
-  --destructive: hsl(0 84.2% 60.2%);
-  --destructive-foreground: hsl(210 40% 98%);
-  --border: hsl(214.3 31.8% 91.4%);
-  --input: hsl(214.3 31.8% 91.4%);
-  --ring: hsl(221.2 83.2% 53.3%);
-  --chart-1: hsl(12 76% 61%);
-  --chart-2: hsl(173 58% 39%);
-  --chart-3: hsl(197 37% 24%);
-  --chart-4: hsl(43 74% 66%);
-  --chart-5: hsl(27 87% 67%);
-  --radius: 0.5rem;
-  --sidebar: hsl(0 0% 98%);
-  --sidebar-foreground: hsl(240 5.3% 26.1%);
-  --sidebar-primary: hsl(221.2 83.2% 53.3%);
-  --sidebar-primary-foreground: hsl(210 40% 98%);
-  --sidebar-accent: hsl(210 40% 96.1%);
-  --sidebar-accent-foreground: hsl(222.2 47.4% 11.2%);
-  --sidebar-border: hsl(214.3 31.8% 91.4%);
-  --sidebar-ring: hsl(221.2 83.2% 53.3%);
-}
+/* Palette, type scale and radii lifted from the onramp widget's own stylesheet
+   (https://onramp.arc.io, `[data-brand=arc]`), so the host app and the embedded
+   iframe render from one set of values and the seam between them disappears.
+   Widget token names are noted next to each entry: when the widget's theme
+   moves, re-read that stylesheet and update these in step. */
+@theme {
+  /* DM Sans for everything, Space Grotesk for display figures, Space Mono for
+     code. The faces are loaded in app/layout.tsx. */
+  --font-sans: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji',
+    'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+  --font-display: var(--font-space-grotesk), var(--font-dm-sans), sans-serif;
+  --font-mono: var(--font-space-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
 
-.dark {
-  --background: hsl(222.2 84% 4.9%);
-  --foreground: hsl(210 40% 98%);
-  --card: hsl(222.2 84% 4.9%);
-  --card-foreground: hsl(210 40% 98%);
-  --popover: hsl(222.2 84% 4.9%);
-  --popover-foreground: hsl(210 40% 98%);
-  --primary: hsl(217.2 91.2% 59.8%);
-  --primary-foreground: hsl(222.2 47.4% 11.2%);
-  --secondary: hsl(217.2 32.6% 17.5%);
-  --secondary-foreground: hsl(210 40% 98%);
-  --muted: hsl(217.2 32.6% 17.5%);
-  --muted-foreground: hsl(215 20.2% 65.1%);
-  --accent: hsl(217.2 32.6% 17.5%);
-  --accent-foreground: hsl(210 40% 98%);
-  --destructive: hsl(0 62.8% 30.6%);
-  --destructive-foreground: hsl(210 40% 98%);
-  --border: hsl(217.2 32.6% 17.5%);
-  --input: hsl(217.2 32.6% 17.5%);
-  --ring: hsl(224.3 76.3% 48%);
-  --chart-1: hsl(220 70% 50%);
-  --chart-2: hsl(160 60% 45%);
-  --chart-3: hsl(30 80% 55%);
-  --chart-4: hsl(280 65% 60%);
-  --chart-5: hsl(340 75% 55%);
-  --sidebar: hsl(222.2 84% 4.9%);
-  --sidebar-foreground: hsl(210 40% 98%);
-  --sidebar-primary: hsl(217.2 91.2% 59.8%);
-  --sidebar-primary-foreground: hsl(222.2 47.4% 11.2%);
-  --sidebar-accent: hsl(217.2 32.6% 17.5%);
-  --sidebar-accent-foreground: hsl(210 40% 98%);
-  --sidebar-border: hsl(217.2 32.6% 17.5%);
-  --sidebar-ring: hsl(224.3 76.3% 48%);
-}
+  --color-background: #0d1b2f; /* --arc-bg-surface-primary */
+  --color-foreground: #f5f5f8; /* --arc-text-neutral */
+  --color-card: #1f2f44; /* --arc-bg-surface-elevated */
+  --color-primary: #acc6e9; /* --arc-bg-bold-interactive */
+  --color-primary-foreground: #000000; /* --arc-text-invert */
+  --color-secondary: #ffffff0d; /* --arc-bg-surface-cardandinput */
+  --color-secondary-foreground: #f5f5f8; /* --arc-text-neutral */
+  --color-muted: #ffffff14; /* --arc-bg-interactive-neutral */
+  --color-muted-foreground: #a7a3b5; /* --arc-text-neutral-subtlest */
+  --color-destructive: #d23e5c; /* --color-arc-red-muted-500 */
+  --color-border: #ffffff26; /* --arc-border-neutral-subtle */
+  --color-ring: #1aa3ff; /* --arc-border-focused */
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
+  /* The widget's palette stops at the tokens above; the rest of the shadcn set
+     this app's components already reference is derived from it rather than
+     invented, so nothing in components/ui needs touching:
+       card-foreground / popover  -> the elevated surface and its text
+       accent                     -> the interactive-neutral hover surface
+       input                      -> the same subtle border inputs already use
+     sidebar-* and chart-* have no consumer today and are mapped straight
+     through so a future one lands in-palette. */
+  --color-card-foreground: #f5f5f8;
+  --color-popover: #1f2f44;
+  --color-popover-foreground: #f5f5f8;
+  --color-accent: #ffffff14;
+  --color-accent-foreground: #f5f5f8;
+  --color-destructive-foreground: #f5f5f8;
+  --color-input: #ffffff26;
+
+  --color-sidebar: #1f2f44;
+  --color-sidebar-foreground: #f5f5f8;
+  --color-sidebar-primary: #acc6e9;
+  --color-sidebar-primary-foreground: #000000;
+  --color-sidebar-accent: #ffffff14;
+  --color-sidebar-accent-foreground: #f5f5f8;
+  --color-sidebar-border: #ffffff26;
+  --color-sidebar-ring: #1aa3ff;
+
+  --color-chart-1: #acc6e9;
+  --color-chart-2: #1aa3ff;
+  --color-chart-3: #afc6d9;
+  --color-chart-4: #d23e5c;
+  --color-chart-5: #a7a3b5;
+
+  /* The device sits on a light stage, tinted with the widget's blue-greys so it
+     reads as part of the same system rather than a neutral screenshot mat. */
+  --color-app-canvas: #eaf0f5; /* --color-arc-blue-grey-50 */
+  --color-device-frame: #f4f7fa; /* --color-arc-blue-grey-25 */
+  --color-device-frame-border: #afc6d9; /* --color-arc-blue-grey-100 */
+  --color-device-button: #e0e9f0; /* --color-arc-blue-grey-75 */
+
+  /* --arc-radius-*. The widget tops out at 18px, so `rounded-lg` is the widest
+     corner anything in the phone should use; xl and 2xl are pinned to the same
+     18px rather than left at Tailwind's defaults so an accidental `rounded-xl`
+     can't overshoot the cap. */
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  --radius-xl: 18px;
+  --radius-2xl: 18px;
+
+  --animate-device-in: enter 700ms var(--ease-out);
+  --animate-screen-in: enter 200ms var(--ease-out);
+  --animate-screen-in-left: slide-from-left 200ms var(--ease-out);
+  --animate-screen-in-right: slide-from-right 200ms var(--ease-out);
+
+  @keyframes enter {
+    from {
+      opacity: 0;
+      transform: scale3d(0.95, 0.95, 0.95);
+    }
+  }
+  @keyframes slide-from-left {
+    from {
+      opacity: 0;
+      transform: translate3d(-2rem, 0, 0);
+    }
+  }
+  @keyframes slide-from-right {
+    from {
+      opacity: 0;
+      transform: translate3d(2rem, 0, 0);
+    }
+  }
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
+}
 
-  body {
-    @apply bg-background text-foreground;
+/* The onramp sheet stays inside the phone because it renders in-tree, as an
+   `absolute inset-0` layer over the screen. A Radix dialog can't: it portals
+   its overlay and panel onto <body> (with asChild, so they land as direct
+   children) and positions them `fixed` against the viewport, which on desktop
+   dims the whole canvas and lets the panel run wider than the phone.
+   Re-constrain them here rather than in components/ui/dialog.tsx, so the shadcn
+   component stays stock. The screen's box is the one drawn by
+   components/device-frame.tsx — 393x852 at radius 42, times --device-scale —
+   and it shares the viewport's centre, so the 50%/50% placement the shadcn
+   classes already carry stays correct and only the size needs capping. */
+@media (min-width: 48rem) {
+  /* Overlay: the dim covers the screen, not the canvas. Centred with auto
+     margins rather than a translate, because `transform` is what
+     tailwindcss-animate animates: the `enter` keyframes start at
+     translate3d(0,0,0) and end at whatever transform the element carries, so a
+     centring translate here would read as a slide in from the corner. */
+  body > [data-state]:not([role]):not([data-radix-popper-content-wrapper]) {
+    inset: 0;
+    margin: auto;
+    width: calc(393px * var(--device-scale, 1));
+    height: calc(852px * var(--device-scale, 1));
+    border-radius: calc(42px * var(--device-scale, 1));
+  }
+
+  /* Panel: fits within the screen, with the phone's own gutter around it.
+     tailwindcss-animate is built for Tailwind v3, where `translate-x-[-50%]`
+     compiled to a `transform`, so `slide-in-from-*-1/2` cancelled the centring
+     offset at the start of the animation. v4 emits the centring as the separate
+     `translate` property, so those offsets no longer cancel anything and instead
+     drag the panel in diagonally. Zero them out and keep the fade and zoom. */
+  body > [role="dialog"],
+  body > [role="alertdialog"] {
+    --tw-enter-translate-x: 0;
+    --tw-enter-translate-y: 0;
+    --tw-exit-translate-x: 0;
+    --tw-exit-translate-y: 0;
+    max-width: calc(393px * var(--device-scale, 1) - 2.5rem);
+    max-height: calc(852px * var(--device-scale, 1) - 2.5rem);
+    overflow-y: auto;
   }
 }

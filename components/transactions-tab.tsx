@@ -25,7 +25,7 @@ import { signOutAction } from "@/app/actions";
 interface Props {
   primaryWallet: Wallet
   profile: {
-    id: any;
+    id: string;
   } | null;
 }
 

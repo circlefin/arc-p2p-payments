@@ -57,7 +57,6 @@ export default function WalletTab() {
       return;
     }
 
-    // Validate amount
     if (amount === "0" || amount === "" || amount.endsWith(".")) {
       toast({
         title: "Invalid amount",
@@ -67,7 +66,6 @@ export default function WalletTab() {
       return;
     }
 
-    // Show address validation dialog
     setShowAddressValidation(true);
   };
 
@@ -84,7 +82,6 @@ export default function WalletTab() {
           variant: "default",
         });
 
-        // Reset form
         setRecipient("");
         setAmount("0");
         setTransactionSent(true);

@@ -19,10 +19,11 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { defineChain, parseGwei } from 'viem';
+import { defineChain, parseGwei, type PublicClient } from 'viem';
 import { createPublicClient } from 'viem';
 import {
     type P256Credential,
+    type BundlerClient,
     type SmartAccount,
     toWebAuthnAccount,
     createBundlerClient,
@@ -36,7 +37,6 @@ import {
     encodeTransfer,
 } from '@circle-fin/modular-wallets-core';
 
-// Arc Testnet chain definition
 export const arcTestnet = defineChain({
     id: 5042002,
     name: 'Arc Testnet',
@@ -63,11 +63,13 @@ export const arcTestnet = defineChain({
 const USDC_ADDRESS = '0x3600000000000000000000000000000000000000';
 const USDC_DECIMALS = 6;
 
+type SignTypedDataParameters = Parameters<SmartAccount['signTypedData']>[0];
+
 interface Account {
     smartAccount: SmartAccount | null;
     address: string | null;
-    bundlerClient: any | null;
-    publicClient: any | null;
+    bundlerClient: BundlerClient | null;
+    publicClient: PublicClient | null;
 }
 
 interface TokenBalance {
@@ -80,15 +82,15 @@ interface Web3ContextType {
     isConnected: boolean;
     isInitialized: boolean;
     error: string | null;
-    registerPasskey: (username: string) => Promise<void>;
-    loginWithPasskey: () => Promise<void>;
+    registerPasskey: (username: string) => Promise<unknown>;
+    loginWithPasskey: () => Promise<unknown>;
     sendTransaction: (to: string, value: string) => Promise<string | null>;
     sendUSDC: (to: string, amount: string) => Promise<string | null>;
     getUSDCBalance: () => Promise<string | null>;
     balance: TokenBalance;
     refreshBalances: () => Promise<void>;
     signMessage: (message: string) => Promise<string | null>;
-    signTypedData: (data: any) => Promise<string | null>;
+    signTypedData: (data: SignTypedDataParameters) => Promise<string | null>;
     getAddress: () => Promise<string | null>;
 }
 
@@ -101,7 +103,6 @@ const emptyAccount: Account = {
     publicClient: null,
 };
 
-// Create context
 const Web3Context = createContext<Web3ContextType>({
     account: emptyAccount,
     isConnected: false,
@@ -119,14 +120,8 @@ const Web3Context = createContext<Web3ContextType>({
     getAddress: async () => null,
 });
 
-// Hook to use the Web3 context
 export const useWeb3 = () => useContext(Web3Context);
 
-const baseUrl = process.env.NEXT_PUBLIC_VERCEL_URL
-    ? process.env.NEXT_PUBLIC_VERCEL_URL
-    : "http://localhost:3000";
-
-// Provider component
 export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [account, setAccount] = useState<Account>(emptyAccount);
     const [isConnected, setIsConnected] = useState<boolean>(false);
@@ -135,12 +130,9 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
     const [credential, setCredential] = useState<P256Credential | null>(null);
     const [balance, setBalance] = useState<TokenBalance>(initialBalance);
 
-    // This effect runs only on the client side
     useEffect(() => {
-        // Only run in browser environment
         if (typeof window === 'undefined') return;
 
-        // Get env variables - safe to access on client side
         const clientKey = process.env.NEXT_PUBLIC_CIRCLE_CLIENT_KEY as string;
         const clientUrl = process.env.NEXT_PUBLIC_CIRCLE_CLIENT_URL as string;
 
@@ -151,19 +143,15 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
             return;
         }
 
-        // Create Circle passkey transport
         const passkeyTransport = toPasskeyTransport(clientUrl, clientKey);
 
-        // Function to load credential from database
         const loadCredential = async () => {
             try {
-                // Fetch credential from the API
-                const response = await fetch(`${baseUrl}/api/get-credential`, {
+                const response = await fetch(`/api/get-credential`, {
                     method: 'GET',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    // Include credentials for auth cookies
                     credentials: 'include',
                 });
 
@@ -173,9 +161,7 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
 
                 const data = await response.json();
 
-                // If credential exists in the response
                 if (data?.credential?.length > 0 && data.credential[0].passkey_credential) {
-                    // Parse the credential string from the database
                     const parsedCredential = JSON.parse(data.credential[0].passkey_credential) as P256Credential;
                     setCredential(parsedCredential);
                     return parsedCredential;
@@ -186,35 +172,29 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
             return null;
         };
 
-        // Initialize client for Arc chain - client side only
         const initializeChain = async (
             credentialData: P256Credential
         ): Promise<Account> => {
             try {
-                // Create modular transport for Arc
                 const modularTransport = toModularTransport(
                     `${clientUrl}/arcTestnet`,
                     clientKey
                 );
 
-                // Create public client
                 const publicClient = createPublicClient({
                     chain: arcTestnet,
                     transport: modularTransport,
                 });
 
-                // Create WebAuthn account
                 const webAuthnAccount = toWebAuthnAccount({
                     credential: credentialData
                 });
 
-                // Create Circle smart account
                 const circleAccount = await toCircleSmartAccount({
                     client: publicClient,
                     owner: webAuthnAccount,
                 });
 
-                // Create bundler client with Arc's minimum gas fee requirements
                 const bundlerClient = createBundlerClient({
                     account: circleAccount,
                     chain: arcTestnet,
@@ -222,13 +202,16 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
                     userOperation: {
                         async estimateFeesPerGas({ account, bundlerClient, userOperation }) {
                             const MIN_PRIORITY_FEE = parseGwei('1');
-                            // Get the fee estimate from the bundler
                             const fees = await bundlerClient.request({
+                                // Pimlico-specific method, not in viem's bundler RPC schema
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                 method: 'pimlico_getUserOperationGasPrice' as any,
                             }).catch(() => null);
 
                             if (fees) {
-                                const fast = (fees as any).fast;
+                                const { fast } = fees as unknown as {
+                                    fast: { maxFeePerGas: string; maxPriorityFeePerGas: string };
+                                };
                                 return {
                                     maxFeePerGas: BigInt(fast.maxFeePerGas),
                                     maxPriorityFeePerGas: BigInt(fast.maxPriorityFeePerGas) < MIN_PRIORITY_FEE
@@ -237,7 +220,6 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
                                 };
                             }
 
-                            // Fallback: use the public client's fee estimation with floor
                             const block = await publicClient.getBlock();
                             const baseFee = block.baseFeePerGas ?? parseGwei('48');
                             return {
@@ -248,7 +230,6 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
                     },
                 });
 
-                // Get address
                 const address = circleAccount.address;
                 return {
                     smartAccount: circleAccount,
@@ -271,7 +252,6 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
                 setAccount(accountData);
                 setIsConnected(!!accountData.address);
 
-                // Fetch balances after initialization
                 if (accountData.address) {
                     setTimeout(async () => {
                         try {
@@ -289,20 +269,18 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
             }
         };
 
-        // Fetch balances using viem client
         const fetchBalances = async (accountData: Account) => {
             const newBalance = { ...initialBalance };
 
             if (accountData.address && accountData.publicClient) {
                 try {
-                    // Native token balance (USDC as gas on Arc)
+                    const address = accountData.address as `0x${string}`;
                     const nativeBalance = await accountData.publicClient.getBalance({
-                        address: accountData.address
+                        address
                     });
 
                     newBalance.native = (Number(nativeBalance) / 1e18).toString();
 
-                    // USDC ERC-20 balance
                     try {
                         const result = await accountData.publicClient.readContract({
                             address: USDC_ADDRESS,
@@ -314,7 +292,7 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
                                 outputs: [{ name: '', type: 'uint256' }],
                             }],
                             functionName: 'balanceOf',
-                            args: [accountData.address]
+                            args: [address]
                         });
 
                         const divisor = 10 ** USDC_DECIMALS;
@@ -331,7 +309,6 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
             setBalance(newBalance);
         };
 
-        // Register a new passkey
         const registerPasskey = async (username: string) => {
             try {
                 setError(null);
@@ -342,14 +319,12 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
                     username,
                 });
 
-                // Set credential in state directly
                 setCredential(newCredential);
 
-                // Initialize with the new credential
                 await initializeWeb3(newCredential);
 
-                // Save the credential to the database via API
-                const response = await fetch(`${baseUrl}/api/update-passkey`, {
+                // Registration and login persist the same wallets.passkey_credential, so they share this route.
+                const response = await fetch(`/api/update-login-credential`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -370,7 +345,6 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
             }
         };
 
-        // Login with existing passkey
         const loginWithPasskey = async () => {
             try {
                 setError(null);
@@ -380,15 +354,12 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
                     mode: WebAuthnMode.Login,
                 });
 
-                // Set the credential in state directly
                 setCredential(newCredential);
 
-                // Initialize with the retrieved credential
                 await initializeWeb3(newCredential);
 
-                // Save or update the credential in the database
                 try {
-                    const response = await fetch(`${baseUrl}/api/update-login-credential`, {
+                    const response = await fetch(`/api/update-login-credential`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -411,22 +382,18 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
             }
         };
 
-        // Refresh balances
         const refreshBalances = async () => {
             await fetchBalances(account);
         };
 
-        // Set context methods
         setContextMethods({
             registerPasskey,
             loginWithPasskey,
             refreshBalances
         });
 
-        // Async initialization function
         const initializeFromDatabase = async () => {
             try {
-                // Load credential from database via API
                 const credentialData = await loadCredential();
 
                 if (credentialData) {
@@ -441,14 +408,12 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
             }
         };
 
-        // Start the initialization process
         initializeFromDatabase();
     }, []);
 
-    // State to hold methods created in the useEffect
     const [contextMethods, setContextMethods] = useState<{
-        registerPasskey: (username: string) => Promise<any>;
-        loginWithPasskey: () => Promise<any>;
+        registerPasskey: (username: string) => Promise<unknown>;
+        loginWithPasskey: () => Promise<unknown>;
         refreshBalances: () => Promise<void>;
     }>({
         registerPasskey: async () => {
@@ -462,7 +427,6 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     });
 
-    // Get address
     const getAddress = async (): Promise<string | null> => {
         if (!account.address) {
             setError('Account not initialized');
@@ -472,7 +436,6 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
         return account.address;
     };
 
-    // Send native token transaction
     const sendTransaction = async (to: string, value: string): Promise<string | null> => {
         if (!account.bundlerClient || !account.smartAccount) {
             setError('Account not initialized');
@@ -480,10 +443,8 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         try {
-            // Convert value from USDC to wei (18 decimals for native)
             const valueInWei = BigInt(Math.floor(parseFloat(value) * 1e18));
 
-            // Send the transaction using userOp
             const userOpHash = await account.bundlerClient.sendUserOperation({
                 calls: [{
                     to: to as `0x${string}`,
@@ -493,12 +454,10 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
                 paymaster: true,
             });
 
-            // Wait for the transaction receipt
             const { receipt } = await account.bundlerClient.waitForUserOperationReceipt({
                 hash: userOpHash,
             });
 
-            // Refresh balances after successful transaction
             contextMethods.refreshBalances().catch(err => {
                 console.error('Failed to refresh balances after transaction:', err);
             });
@@ -511,7 +470,6 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     };
 
-    // Send USDC tokens
     const sendUSDC = async (to: string, amount: string): Promise<string | null> => {
         if (!account.bundlerClient || !account.smartAccount) {
             setError('Account not initialized');
@@ -519,10 +477,8 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         try {
-            // Convert amount to token units (6 decimals for ERC-20)
             const tokenAmount = BigInt(Math.floor(parseFloat(amount) * (10 ** USDC_DECIMALS)));
 
-            // Send the token transfer using userOp with encodeTransfer
             const userOpHash = await account.bundlerClient.sendUserOperation({
                 calls: [
                     encodeTransfer(
@@ -534,12 +490,10 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
                 paymaster: true,
             });
 
-            // Wait for the transaction receipt
             const { receipt } = await account.bundlerClient.waitForUserOperationReceipt({
                 hash: userOpHash,
             });
 
-            // Refresh balances after successful transaction
             contextMethods.refreshBalances().catch(err => {
                 console.error('Failed to refresh balances after USDC transfer:', err);
             });
@@ -552,12 +506,10 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     };
 
-    // Get USDC balance
     const getUSDCBalance = async (): Promise<string | null> => {
         return balance.usdc;
     };
 
-    // Sign a message
     const signMessage = async (message: string): Promise<string | null> => {
         if (!account.smartAccount) {
             setError('Account not initialized');
@@ -577,8 +529,7 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     };
 
-    // Sign typed data according to EIP-712
-    const signTypedData = async (data: any): Promise<string | null> => {
+    const signTypedData = async (data: SignTypedDataParameters): Promise<string | null> => {
         if (!account.smartAccount) {
             setError('Account not initialized');
             return null;

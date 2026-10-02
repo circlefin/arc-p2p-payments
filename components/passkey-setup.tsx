@@ -40,7 +40,6 @@ interface PasskeySetupProps {
     username: string;
 }
 
-// This component handles the wallet setup after user registration
 export function PasskeySetup({ username }: PasskeySetupProps) {
     const [isCreating, setIsCreating] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -49,7 +48,6 @@ export function PasskeySetup({ username }: PasskeySetupProps) {
     const clientKey = process.env.NEXT_PUBLIC_CIRCLE_CLIENT_KEY;
     const clientUrl = process.env.NEXT_PUBLIC_CIRCLE_CLIENT_URL;
 
-    // Create Circle transports - only in browser
     const passkeyTransport = typeof window !== 'undefined'
         ? toPasskeyTransport(clientUrl, clientKey)
         : null;
@@ -64,21 +62,18 @@ export function PasskeySetup({ username }: PasskeySetupProps) {
         setError(null);
 
         try {
-            // Create passkey credential
             const credential = await toWebAuthnCredential({
                 transport: passkeyTransport,
                 mode: WebAuthnMode.Register,
                 username,
             });
 
-            // Get the real Circle address
             let circleAddress;
             try {
                 const webAuthnAccount = toWebAuthnAccount({
                     credential
                 });
 
-                // Create modular transport for Arc
                 const modularTransport = toModularTransport(
                     `${clientUrl}/arcTestnet`,
                     clientKey
@@ -99,7 +94,6 @@ export function PasskeySetup({ username }: PasskeySetupProps) {
                 console.warn("Could not get Circle address:", e);
             }
 
-            // Call API to set up wallet with the passkey
             const response = await fetch('/api/setup-wallets', {
                 method: 'POST',
                 headers: {
@@ -116,7 +110,6 @@ export function PasskeySetup({ username }: PasskeySetupProps) {
                 throw new Error(errorData.error || 'Failed to set up wallet');
             }
 
-            // Force a small delay to ensure all database writes complete
             await new Promise(resolve => setTimeout(resolve, 1000));
 
             try {
@@ -125,7 +118,6 @@ export function PasskeySetup({ username }: PasskeySetupProps) {
                 console.warn("Could not parse response JSON", e);
             }
 
-            // Force redirect to dashboard
             window.location.href = '/dashboard';
         } catch (err) {
             console.error("Passkey creation failed:", err);

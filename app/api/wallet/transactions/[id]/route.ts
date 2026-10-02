@@ -18,6 +18,13 @@
 
 import { type NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server-client";
+import {
+  forbidden,
+  getAuthenticatedUser,
+  getOwnWallet,
+  unauthorized,
+} from "@/lib/auth/session";
+import { sameAddress } from "@/lib/wallets/address";
 
 const ARC_BLOCKCHAIN = "ARC-TESTNET";
 const ARC_NETWORK_NAME = "Arc Testnet";
@@ -31,10 +38,34 @@ export async function GET(
     const { id } = await props.params;
     const networkId = ARC_CHAIN_ID;
 
-    // Initialize Supabase client
+    // Only the signed-in user's own transactions: a transaction id or hash on its own
+    // must not be enough to read anything. Everything below reads and writes as the
+    // user, so row level security applies as well.
     const supabase = await createSupabaseServerClient();
+    const user = await getAuthenticatedUser(supabase);
+    if (!user) return unauthorized();
 
-    // First check if we have this transaction in our local database
+    const ownWallet = await getOwnWallet(supabase, user.id);
+    if (!ownWallet) return forbidden("You do not have a wallet yet");
+
+    const involvesOwnWallet = (transfer: {
+      walletAddress?: string;
+      from?: string;
+      to?: string;
+      fromAddress?: string;
+      toAddress?: string;
+    }) =>
+      [
+        transfer.walletAddress,
+        transfer.from,
+        transfer.to,
+        transfer.fromAddress,
+        transfer.toAddress,
+      ].some(
+        (address) =>
+          typeof address === "string" && sameAddress(address, ownWallet.wallet_address)
+      );
+
     let localTransaction = null;
 
     if (id.startsWith("0x")) {
@@ -55,11 +86,11 @@ export async function GET(
           circle_contract_address,
           network_id,
           network_name,
-          wallets (wallet_address),
-          profiles (*)
+          wallets (wallet_address)
         `
         )
         .eq("circle_transaction_id", id)
+        .eq("profile_id", ownWallet.profile_id)
         .single();
 
       if (txByHashError && txByHashError.code !== "PGRST116") {
@@ -89,11 +120,11 @@ export async function GET(
             circle_contract_address,
             network_id,
             network_name,
-            wallets (wallet_address),
-            profiles (*)
+            wallets (wallet_address)
           `
           )
           .eq("id", id)
+          .eq("profile_id", ownWallet.profile_id)
           .single();
 
         if (txByUuidError && txByUuidError.code !== "PGRST116") {
@@ -109,7 +140,6 @@ export async function GET(
       }
     }
 
-    // If we found the transaction in our database, return it
     if (localTransaction) {
       const transaction = {
         id: localTransaction.id,
@@ -139,7 +169,6 @@ export async function GET(
       return NextResponse.json({ transaction });
     }
 
-    // If not found in database, proceed with Circle API calls
     const transferUrl = `https://api.circle.com/v1/w3s/buidl/transfers/${id}`;
     const transferResponse = await fetch(transferUrl, {
       method: "GET",
@@ -152,7 +181,11 @@ export async function GET(
     if (transferResponse.ok) {
       const transferData = await transferResponse.json();
 
-      if (transferData.data && transferData.data.transfer) {
+      if (
+        transferData.data &&
+        transferData.data.transfer &&
+        involvesOwnWallet(transferData.data.transfer)
+      ) {
         const transfer = transferData.data.transfer;
         const transaction = {
           id: transfer.id,
@@ -175,13 +208,8 @@ export async function GET(
           tokenAddress: transfer.tokenAddress || "",
         };
 
-        // Try to store this transaction data in our database
         try {
-          const { data: wallet } = await supabase
-            .from("wallets")
-            .select("id, profile_id")
-            .eq("wallet_address", transfer.walletAddress || transfer.from)
-            .maybeSingle();
+          const wallet = { id: ownWallet.id, profile_id: ownWallet.profile_id };
 
           if (wallet) {
             const { error: insertError } = await supabase
@@ -216,7 +244,6 @@ export async function GET(
       }
     }
 
-    // If not found by direct ID, try searching by txHash
     const txHashRegex = /^0x[a-fA-F0-9]{64}$/;
     const isTransactionHash = txHashRegex.test(id);
 
@@ -232,13 +259,10 @@ export async function GET(
 
       if (transferByHashResponse.ok) {
         const transfersData = await transferByHashResponse.json();
+        const mine = (transfersData.data?.transfers ?? []).filter(involvesOwnWallet);
 
-        if (
-          transfersData.data &&
-          transfersData.data.transfers &&
-          transfersData.data.transfers.length > 0
-        ) {
-          const transfer = transfersData.data.transfers[0];
+        if (mine.length > 0) {
+          const transfer = mine[0];
           const transaction = {
             id: transfer.id,
             amounts: [transfer.amount || "0"],
@@ -263,14 +287,7 @@ export async function GET(
           };
 
           try {
-            const { data: wallet } = await supabase
-              .from("wallets")
-              .select("id, profile_id")
-              .eq(
-                "wallet_address",
-                transfer.walletAddress || transfer.from || transfer.fromAddress
-              )
-              .maybeSingle();
+            const wallet = { id: ownWallet.id, profile_id: ownWallet.profile_id };
 
             if (wallet) {
               const { error: insertError } = await supabase
@@ -305,7 +322,6 @@ export async function GET(
         }
       }
 
-      // If not found, try transaction-receipt API as last resort
       const receiptUrl = `https://api.circle.com/v1/w3s/buidl/transactions/${ARC_BLOCKCHAIN}/${id}/receipt`;
 
       const receiptResponse = await fetch(receiptUrl, {
@@ -319,7 +335,7 @@ export async function GET(
       if (receiptResponse.ok) {
         const receiptData = await receiptResponse.json();
 
-        if (receiptData.data) {
+        if (receiptData.data && involvesOwnWallet(receiptData.data)) {
           const receipt = receiptData.data;
           const transaction = {
             id: receipt.transactionHash || id,
@@ -340,11 +356,7 @@ export async function GET(
           };
 
           try {
-            const { data: wallet } = await supabase
-              .from("wallets")
-              .select("id, profile_id")
-              .eq("wallet_address", receipt.from)
-              .maybeSingle();
+            const wallet = { id: ownWallet.id, profile_id: ownWallet.profile_id };
 
             if (wallet) {
               const { error: insertError } = await supabase

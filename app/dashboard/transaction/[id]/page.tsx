@@ -26,13 +26,24 @@ import { Button } from "@/components/ui/button";
 import { ChevronDown, X } from "lucide-react";
 import Link from "next/link";
 
-const baseUrl = process.env.NEXT_PUBLIC_VERCEL_URL
-  ? process.env.NEXT_PUBLIC_VERCEL_URL
-  : "http://localhost:3000";
+interface TransactionDetails {
+  id: string;
+  state: string;
+  transactionType?: string;
+  from?: string;
+  to?: string;
+  walletId?: string;
+  walletAddress?: string;
+  tokenAddress?: string;
+  amounts?: string[];
+  txHash?: string;
+  createDate: string;
+  updateDate: string;
+}
 
 export default function Transaction() {
   const router = useRouter();
-  const [transaction, setTransaction] = useState<any>(null);
+  const [transaction, setTransaction] = useState<TransactionDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -49,7 +60,7 @@ export default function Transaction() {
 
       try {
         setLoading(true);
-        const url = `${baseUrl}/api/wallet/transactions/${id}`;
+        const url = `/api/wallet/transactions/${id}`;
 
         const response = await fetch(url);
         const parsedResponse = await response.json();
