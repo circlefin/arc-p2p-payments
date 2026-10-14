@@ -60,7 +60,7 @@ Modern peer-to-peer payment system. This sample application uses Next.js, Supaba
 
 - Built with [Next.js](https://nextjs.org/) App Router and [Supabase](https://supabase.com/)
 - Uses [Circle Modular Wallets](https://developers.circle.com/wallets/modular) for managing transactions with Passkey security
-- Uses [Arc Network](https://arc.network/) for fast and low-cost transactions
+- Uses [Arc Network](https://www.arc.io/) for fast and low-cost transactions
 - Payments are sent as user operations through a bundler, with gas sponsored by a paymaster
 - **Fund Wallet** uses `@crcl-main/onramp-kit`: the server creates a session for the signed-in user's own wallet and the browser opens Circle's onramp widget with it
 - Real-time UI updates powered by Supabase Realtime subscriptions
